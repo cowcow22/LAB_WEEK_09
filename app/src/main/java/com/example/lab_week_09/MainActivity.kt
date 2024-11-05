@@ -6,7 +6,9 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -26,6 +28,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
@@ -41,6 +44,9 @@ import com.example.lab_week_09.ui.theme.LAB_WEEK_09Theme
 import com.example.lab_week_09.ui.theme.OnBackgroundItemText
 import com.example.lab_week_09.ui.theme.OnBackgroundTitleText
 import com.example.lab_week_09.ui.theme.PrimaryTextButton
+import com.squareup.moshi.Moshi
+import com.squareup.moshi.Types
+import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -97,6 +103,7 @@ fun Home(
             Student("Tono")
         )
     }
+
     //Here, we create a mutable state of Student
     //This is so that we can get the value of the input field
     var inputField by remember { mutableStateOf(Student("")) }
@@ -106,6 +113,7 @@ fun Home(
     //inputField to show the input field value inside HomeContent
     //A lambda function to update the value of the inputField
     //A lambda function to add the inputField to the listData
+
     HomeContent(
         listData,
         inputField,
@@ -114,7 +122,12 @@ fun Home(
             listData.add(inputField)
             inputField = inputField.copy("")
         },
-        { navigateFromHomeToResult(listData.toList().toString()) }
+        {
+            val moshi = Moshi.Builder().add(KotlinJsonAdapterFactory()).build()
+            val jsonAdapter = moshi.adapter(List::class.java)
+            val jsonListData = jsonAdapter.toJson(listData)
+            navigateFromHomeToResult(jsonListData)
+        }
     )
 }
 
@@ -129,7 +142,7 @@ fun HomeContent(
     navigateFromHomeToResult: () -> Unit
 ) {
     //Here, we use LazyColumn to display a list of items lazily
-    LazyColumn {
+    LazyColumn(modifier = Modifier.fillMaxSize()) {
         //Here, we use item to display an item inside the LazyColumn
         item {
             Column(
@@ -171,26 +184,34 @@ fun HomeContent(
                 )
 
                 //Here, we call the PrimaryTextButton UI Element
-                PrimaryTextButton(
-                    text = stringResource(
-                        id = R.string.button_click
-                    ),
-                    onClick = {
-                        if (inputField.name.isNotBlank()) {
-                            onButtonClick()
-                        }
-                    }
-                )
+                var showError by remember { mutableStateOf(false) }
+                val context = LocalContext.current
+                var inputText by remember { mutableStateOf("") }
 
-                //This button is used to navigate to the ResultContent composable
-                //We pass the listData as a parameter
-                //to show as result inside the ResultContent composable
-                PrimaryTextButton(
-                    text = stringResource(
-                        id = R.string.button_navigate
+                Row {
+                    PrimaryTextButton(
+                        text = stringResource(id = R.string.button_click),
+                        onClick = {
+                            if (inputField.name.isNotBlank()) {
+                                showError = false
+                                onButtonClick()
+                            } else {
+                                showError = true
+                                Toast.makeText(context, "Harap isi input field terlebih dahulu", Toast.LENGTH_SHORT).show()
+                            }
+                        }
                     )
-                ) {
-                    navigateFromHomeToResult()
+
+                    //This button is used to navigate to the ResultContent composable
+                    //We pass the listData as a parameter
+                    //to show as result inside the ResultContent composable
+                    PrimaryTextButton(
+                        text = stringResource(
+                            id = R.string.button_navigate
+                        )
+                    ) {
+                        navigateFromHomeToResult()
+                    }
                 }
             }
         }
@@ -201,7 +222,7 @@ fun HomeContent(
             Column(
                 modifier = Modifier
                     .padding(vertical = 4.dp)
-                    .fillMaxSize(),
+                    .fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 //Here, we call the OnBackgroundItemText UI Element
@@ -265,13 +286,23 @@ fun App(navController: NavHostController) {
 //then displays the value of listData to the screen
 @Composable
 fun ResultContent(listData: String) {
-    Column(
+    val moshi = Moshi.Builder().add(KotlinJsonAdapterFactory()).build()
+    val jsonAdapter = moshi.adapter<List<Student>>(
+        Types.newParameterizedType(
+            List::class.java,
+            Student::class.java
+        )
+    )
+    val studentList = jsonAdapter.fromJson(listData) ?: emptyList()
+
+    LazyColumn(
         modifier = Modifier
             .padding(vertical = 4.dp)
             .fillMaxSize(),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        //Here, we call the OnBackgroundItemText UI Element
-        OnBackgroundItemText(text = listData)
+        items(studentList) { student ->
+            OnBackgroundItemText(text = student.name)
+        }
     }
 }
